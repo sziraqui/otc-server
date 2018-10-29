@@ -1,0 +1,33 @@
+{
+  "name": "otc-server",
+  "version": "0.0.1",
+  "description": "\"Backend for OneTimeChat application\"",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node ./bin/init.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sziraqui/otc-server.git"
+  },
+  "nodemonConfig": {
+    "ignore": [
+      "data",
+      "*.json"
+    ]
+  },
+  "author": {
+    "name": "sziraqui",
+    "email": "sarfarazghlm@gmail.com"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sziraqui/otc-server/issues"
+  },
+  "homepage": "https://github.com/sziraqui/otc-server#readme",
+  "dependencies": {
+    "express": "^4.16.4",
+    "hbs": "^4.0.1",
+    "http-errors": "^1.7.1"
+  }
+}
