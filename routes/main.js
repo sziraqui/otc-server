@@ -18,35 +18,64 @@ router.post("/join-room", (req, res, next) => {
       res.locals.error = req.app.get("env") === "development" ? err : {};
       res.status(err.status | 500);
       res.render("error");
+      return;
     }
-
-    let chatrooms = JSON.parse(data).chatrooms;
-
-    const roomName = req.body.chatRoomName;
-    const passkey = req.body.passkey;
-    let passhash = null;
+    console.log(req.body);
+    let chatroomName = req.body.chatroomName;
     let username = req.body.username;
-
-    if (passkey !== undefined) {
-      passhash = getHash(passkey, "md5");
-      console.log("Passkey hash", passhash);
+    let passkey = req.body.passkey;
+    if (passkey == undefined) {
+      passkey = "";
     }
-    let room = chatrooms[roomName];
-
-    if (room !== undefined) {
-      console.log("Chatroom exists");
-      let user = room.users[username];
-      if (user !== undefined) {
-        console.log("user exists");
-        res.send(JSON.stringify({ messages: room.messages }));
-      } else {
-        chatrooms = addUser(chatrooms, roomName, username);
-        saveDB(chatrooms);
-      }
-    } else {
-      chatrooms = addChatRoom(chatrooms, roomName, passhash, username);
+    let chatrooms = JSON.parse(data).chatrooms;
+    let room = chatrooms[chatroomName];
+    if (room == undefined) {
+      console.log("Creating new chatroom", chatroomName);
+      chatrooms.list.push(chatroomName);
+      chatrooms[chatroomName] = {
+        name: chatroomName,
+        passhash: getHash(passkey, "md5"),
+        id: getRand(6),
+        users: {
+          list: [username]
+        },
+        messages: []
+      };
+      console.log("Chatroom created:", chatroomName);
+      chatrooms[chatroomName].users[username] = {
+        name: username,
+        id: getRand(6),
+        isAuthenticated: true
+      };
+      res.send(
+        JSON.stringify(chatrooms[chatroomName]["users"][username], "\t")
+      );
       saveDB(chatrooms);
-      res.send(JSON.stringify({ messages: chatrooms[roomName].messages }));
+      return;
+    } else if (getHash(passkey, "md5") == room.passhash) {
+      let user = room.users[username];
+      if (user == undefined) {
+        user = {
+          name: username,
+          id: getRand(6)
+        };
+        room.users.list.push(username);
+        room.users[username] = user;
+        console.log("Created new user");
+      }
+      room.users[username]["isAuthenticated"] = true;
+      chatrooms[chatroomName] = room;
+      res.send(JSON.stringify(user, (space = " ")));
+      saveDB(chatrooms);
+    } else {
+      console.log("Incorrect password for chatroom", chatroomName);
+      res.send(
+        JSON.stringify({
+          name: username,
+          id: -1,
+          isAuthenticated: false
+        })
+      );
     }
   });
 });
@@ -73,7 +102,119 @@ function addUser(chatrooms, room, username) {
   return chatrooms;
 }
 
-router.post("/new-message", (req, res, next) => {
+router.get(
+  "/new-message/:chatroomName/:username/:passkey/:message",
+  (req, res, next) => {
+    fs.readFile(path.join(rootDir, "data", "chatrooms.json"), (err, data) => {
+      if (err) {
+        console.log(err);
+        res.locals.message = err.message;
+        res.locals.error = req.app.get("env") === "development" ? err : {};
+        res.status(err.status | 500);
+        res.render("error");
+      }
+
+      let chatrooms = JSON.parse(data).chatrooms;
+
+      const chatroomName = req.params.chatroomName;
+      let passkey = req.params.passkey;
+      const username = req.params.username;
+      const message = req.params.message;
+
+      if (passkey == undefined) {
+        passkey = "";
+      }
+      let room = chatrooms[chatroomName];
+      if (room != undefined) {
+        if (
+          getHash(passkey, "md5") == room.passhash &&
+          room.users[username] != undefined
+        ) {
+          if (message != undefined) {
+            chatrooms = saveMessage(chatrooms, chatroomName, username, message);
+          }
+        } else {
+          console.log("Incorrect password or room does not exist");
+        }
+      }
+      res.send(chatrooms[chatroomName].messages);
+      saveDB(chatrooms);
+    });
+  }
+);
+
+router.get("/join-room/:chatroomName/:username/:passkey", (req, res, next) => {
+  fs.readFile(path.join(rootDir, "data", "chatrooms.json"), (err, data) => {
+    if (err) {
+      console.log(err);
+      res.locals.message = err.message;
+      res.locals.error = req.app.get("env") === "development" ? err : {};
+      res.status(err.status | 500);
+      res.render("error");
+      return;
+    }
+    let chatroomName = req.params.chatroomName;
+    let username = req.params.username;
+    let passkey = req.params.passkey;
+    if (passkey == undefined) {
+      passkey = "";
+    }
+
+    let chatrooms = JSON.parse(data).chatrooms;
+    let room = chatrooms[chatroomName];
+    console.log("room:", room);
+    if (room == undefined) {
+      console.log("Creating new chatroom", chatroomName);
+      chatrooms.list.push(chatroomName);
+      chatrooms[chatroomName] = {
+        name: chatroomName,
+        passhash: getHash(passkey, "md5"),
+        id: getRand(6),
+        users: {
+          list: [username]
+        },
+        messages: []
+      };
+      console.log("Chatroom created:", chatroomName);
+      chatrooms[chatroomName].users[username] = {
+        name: username,
+        id: getRand(6),
+        isAuthenticated: true
+      };
+      res.send(
+        JSON.stringify(chatrooms[chatroomName]["users"][username], "\t")
+      );
+      saveDB(chatrooms);
+      return;
+    } else if (getHash(passkey, "md5") == room.passhash) {
+      let user = room.users[username];
+      if (user == undefined) {
+        user = {
+          name: username,
+          id: getRand(6)
+        };
+        room.users.list.push(username);
+        room.users[username] = user;
+        console.log("Created new user");
+      }
+      room.users[username]["isAuthenticated"] = true;
+      chatrooms[chatroomName] = room;
+      res.send(JSON.stringify(user, (space = " ")));
+      saveDB(chatrooms);
+    } else {
+      console.log("Incorrect password for chatroom", chatroomName);
+      res.send(
+        JSON.stringify({
+          name: username,
+          id: -1,
+          isAuthenticated: false
+        })
+      );
+    }
+  });
+});
+
+router.get("/messages/:chatroomName/:passkey", (req, res, next) => {
   fs.readFile(path.join(rootDir, "data", "chatrooms.json"), (err, data) => {
     if (err) {
       console.log(err);
@@ -85,27 +226,20 @@ router.post("/new-message", (req, res, next) => {
 
     let chatrooms = JSON.parse(data).chatrooms;
 
-    const roomName = req.body.chatRoomName;
-    const passkey = req.body.passkey;
-    let passhash = null;
-    const username = req.body.username;
-    const message = req.body.message;
+    const chatroomName = req.params.chatroomName;
+    let passkey = req.params.passkey;
 
-    if (passkey !== undefined) {
-      passhash = getHash(passkey);
+    if (passkey == undefined) {
+      passkey = "";
     }
-    let room = chatrooms[roomName];
-    if (room !== undefined) {
-      let user = room.users[username];
-      if (user !== undefined) {
-        chatrooms = sendMessage(chatrooms, roomName, username, message);
-        saveDB(chatrooms);
-        res.send(JSON.stringify(chatrooms[roomName].messages));
+    let room = chatrooms[chatroomName];
+    if (room != undefined) {
+      if (getHash(passkey, "md5") == room.passhash) {
+        res.send(chatrooms[chatroomName].messages);
+      } else {
+        console.log("Incorrect password or room does not exist");
+        res.send([]);
       }
-    } else {
-      err = new Error("Chatroom or user doesnt exist");
-      res.status(404);
-      res.render("error");
     }
   });
 });
@@ -127,18 +261,15 @@ function saveMessage(chatrooms, room, username, message) {
   chatrooms[room].messages.push({
     from: username,
     time: time,
-    content: message
+    content: message,
+    id: getRand(6)
   });
   return chatrooms;
 }
 
-function clearRoom(chatrooms, roomName) {
-  delete chatrooms[roomName];
+function clearRoom(chatrooms, chatroomName) {
+  delete chatrooms[chatroomName];
   return chatrooms;
 }
-
-router.get("/room", (req, res, next) => {
-  res.render("chatroom");
-});
 
 module.exports = router;

@@ -13,7 +13,8 @@
   "nodemonConfig": {
     "ignore": [
       "data",
-      "*.json"
+      "*.json",
+      "node_modules"
     ]
   },
   "author": {
