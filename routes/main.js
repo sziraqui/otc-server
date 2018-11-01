@@ -4,6 +4,9 @@ let path = require("path");
 let fs = require("fs");
 let getRand = require("../utils").getRand;
 let getHash = require("../utils").getHash;
+let encrypt = require("../utils").encrypt;
+let decrypt = require("../utils").decrypt;
+
 const rootDir = path.resolve("./");
 
 router.get("/", (req, res) => {
@@ -124,14 +127,18 @@ router.get(
       if (passkey == undefined) {
         passkey = "";
       }
+      let passhash = getHash(passkey, "md5");
       let room = chatrooms[chatroomName];
       if (room != undefined) {
-        if (
-          getHash(passkey, "md5") == room.passhash &&
-          room.users[username] != undefined
-        ) {
+        if (room.users[username] != undefined) {
           if (message != undefined) {
-            chatrooms = saveMessage(chatrooms, chatroomName, username, message);
+            chatrooms = saveMessage(
+              chatrooms,
+              chatroomName,
+              username,
+              message,
+              passhash
+            );
           }
         } else {
           console.log("Incorrect password or room does not exist");
@@ -207,7 +214,7 @@ router.get("/join-room/:chatroomName/:username/:passkey", (req, res, next) => {
         JSON.stringify({
           name: username,
           id: -1,
-          isAuthenticated: false
+          isAuthenticated: true
         })
       );
     }
@@ -232,10 +239,26 @@ router.get("/messages/:chatroomName/:passkey", (req, res, next) => {
     if (passkey == undefined) {
       passkey = "";
     }
+    let passhash = getHash(passkey, "md5");
     let room = chatrooms[chatroomName];
     if (room != undefined) {
-      if (getHash(passkey, "md5") == room.passhash) {
-        res.send(chatrooms[chatroomName].messages);
+      if (getHash(passkey, "md5") /* == room.passhash*/) {
+        let messages = [];
+        chatrooms[chatroomName].messages.map(message => {
+          console.log("map:", message.content);
+          let content;
+          if (room.passhash == passhash) {
+          }
+          messages.push({
+            from: message.from,
+            time: message.time,
+            content:
+              passhash == room.passhash
+                ? decrypt(message.content, passhash)
+                : message.content
+          });
+        });
+        res.send(messages);
       } else {
         console.log("Incorrect password or room does not exist");
         res.send([]);
@@ -255,13 +278,13 @@ function saveDB(chatrooms) {
   );
 }
 
-function saveMessage(chatrooms, room, username, message) {
+function saveMessage(chatrooms, room, username, message, passhash) {
   const date = new Date();
   const time = date.toDateString() + " " + date.toTimeString();
   chatrooms[room].messages.push({
     from: username,
     time: time,
-    content: message,
+    content: encrypt(message, passhash),
     id: getRand(6)
   });
   return chatrooms;
